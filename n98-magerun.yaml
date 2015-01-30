@@ -1,0 +1,10 @@
+autoloaders:
+  Ikom: %module%/src
+
+commands:
+  customCommands:
+    - Ikom\RunDataProfile
+
+# # optional command config
+#  MyCommandNamespace\FooCommand:
+#    bar: zoz
