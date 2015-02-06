@@ -25,7 +25,7 @@ class RunDataProfile extends AbstractMagentoCommand
     */
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-		$logfile  = 'export_data.log';      // Import/Export log file
+		$logfile  = 'import_export.log';      // Import/Export log file
 		$table = 'dataflow_batch_export';
 
 		$this->detectMagento($output);
@@ -37,11 +37,15 @@ class RunDataProfile extends AbstractMagentoCommand
                 $profileId = $dialog->ask($output, '<question>Profile Id:</question>');
             }
 
-      		// \Mage::app()->setCurrentStore(Mage_Core_Model_App::ADMIN_STORE_ID);
-      		$profile = $this->_getModel('dataflow/profile');
-      		$userModel = $this->_getModel('admin/user');
+            // \Mage::app() -> ADMIN_STORE_ID
+      		\Mage::app()->setCurrentStore(0);
+      		$profile = $this->_getModel('dataflow/profile', null);
+      		$userModel = $this->_getModel('admin/user', null);
       		$userModel->setUserId(0);
       		\Mage::getSingleton('admin/session')->setUser($userModel);
+
+      		\Mage::getSingleton('dataflow/batch')->delete();
+
       		$profile->load($profileId);
       		if (!$profile->getId()) {
       			\Mage::getSingleton('adminhtml/session')->addError('ERROR: Incorrect profile id');
@@ -49,16 +53,66 @@ class RunDataProfile extends AbstractMagentoCommand
       			return;
       		}
 
-      		\Mage::log('Export ' . $profileId . ' Started.', null, $logfile);
+      		$direction = ucwords($profile->getDirection());
+
+      		\Mage::log($direction.' profile '.$profileId. ' started.', null, $logfile);
       		\Mage::register('current_convert_profile', $profile);
       		$profile->run();
-      		$recordCount = 0;
-      		$batchModel = \Mage::getSingleton('dataflow/batch');
+      		$batchSingleton = \Mage::getSingleton('dataflow/batch');
 
-      		\Mage::log('Export '.$profileId.' Complete. BatchID: '.$batchModel->getId(),
+      		$direction = ucwords($profile->getDirection());
+      		$recordCount = 0;
+      		if ($direction == "Import") {
+	      		if ($batchSingleton->getId()) {
+	      			if ($batchSingleton->getAdapter()) {
+	      				\Mage::app()->setCurrentStore(\Mage::getModel('core/store')->load(0));
+
+	      				$batchImportModel = $batchSingleton->getBatchImportModel();
+	      				$importIds = $batchImportModel->getIdCollection();
+	      				$batchModel = \Mage::getModel('dataflow/batch')->load($batchSingleton->getId());
+	      				$adapter = \Mage::getModel($batchModel->getAdapter());
+	      				$adapter->setBatchParams($batchModel->getParams());
+	      				\Mage::log("Batch profile ". $batchSingleton->getId()
+	      						." has ". count($importIds) ." steps");
+	      				foreach ($importIds as $importId) {
+	      					$recordCount++;
+	      					try{
+	      						$batchImportModel->load($importId);
+	      						if (!$batchImportModel->getId()) {
+	      							$errors[] = \Mage::helper('dataflow')->__('Skip undefined row');
+	      							continue;
+	      						}
+
+	      						try {
+	      							$importData = $batchImportModel->getBatchData();
+	      							$adapter->saveRow($importData);
+	      						} catch (Exception $e) {
+	      							\Mage::log($e->getMessage(), null, $logfile);
+	      							continue;
+	      						}
+
+	      						if ($recordCount % 10 == 0) {
+	      							\Mage::log("Successfully processed ".
+	      									$recordCount." steps", null, $logfile);
+	      						}
+	      					} catch(Exception $ex) {
+	      						\Mage::log('Record #'.$recordCount.' - SKU = '
+	      								.$importData['sku'].' - Error - '.$ex->getMessage(),
+	      								null, $logfile);
+	      					}
+	      				}
+	      				foreach ($profile->getExceptions() as $e) {
+	      					\Mage::log($e->getMessage(), null, $logfile);
+	      				}
+	      			}
+	      		}
+      		}
+
+      		\Mage::log($direction.' profile '.$profileId.
+      				' complete. BatchID: '.$batchSingleton->getId(),
       				null, $logfile);
 
-      		$output->writeln("Export Complete. BatchID: " . $batchModel->getId());
+      		\Mage::getSingleton('dataflow/batch')->delete();
       	}
     }
 }
