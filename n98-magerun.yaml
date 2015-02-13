@@ -4,6 +4,7 @@ autoloaders:
 commands:
   customCommands:
     - Ikom\RunDataProfile
+    - Ikom\ExportCategories
 
 # # optional command config
 #  MyCommandNamespace\FooCommand:
