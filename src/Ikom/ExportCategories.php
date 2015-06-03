@@ -49,9 +49,9 @@ class ExportCategories extends AbstractMagentoCommand
             		$data = array($category->getName(), $category->getId(), $path);
             		fputcsv($write, $data);
             	}
+            	fclose($write);
             }
 
-            fclose($write);
 
       		\Mage::log("exported all categories", null, $logfile);
       	}
