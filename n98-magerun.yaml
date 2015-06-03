@@ -5,7 +5,5 @@ commands:
   customCommands:
     - Ikom\RunDataProfile
     - Ikom\ExportCategories
-
-# # optional command config
-#  MyCommandNamespace\FooCommand:
-#    bar: zoz
+    - Ikom\CmsExport
+    - Ikom\CmsImport
